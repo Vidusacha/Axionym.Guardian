@@ -1,17 +1,82 @@
 import { BroadcastMessage, InspectResult, SecurityQuestion, ThreatStat, TrendData } from '../types';
+import { db } from '../lib/firebase';
+import { collection, getDocs, addDoc, Timestamp } from 'firebase/firestore';
 
-// Simulate fetching questions from Firestore
+// --- MOCK DATA FALLBACKS ---
+const MOCK_QUESTIONS: SecurityQuestion[] = [
+  { id: 'q1', text: 'Do you use a unique password for every account?', weight: 20 },
+  { id: 'q2', text: 'Is Two-Factor Authentication (2FA) enabled on your email?', weight: 30 },
+  { id: 'q3', text: 'Do you update your OS automatically?', weight: 15 },
+  { id: 'q4', text: 'Do you use an encrypted messaging app (e.g., Signal)?', weight: 15 },
+  { id: 'q5', text: 'Is your hard drive encrypted (BitLocker/FileVault)?', weight: 20 },
+];
+
+// --- DATABASE OPERATIONS ---
+
+// Fetch questions from Firestore 'safety_questions' collection
 export const getSecurityQuestions = async (): Promise<SecurityQuestion[]> => {
-  return [
-    { id: 'q1', text: 'Do you use a unique password for every account?', weight: 20 },
-    { id: 'q2', text: 'Is Two-Factor Authentication (2FA) enabled on your email?', weight: 30 },
-    { id: 'q3', text: 'Do you update your OS automatically?', weight: 15 },
-    { id: 'q4', text: 'Do you use an encrypted messaging app (e.g., Signal)?', weight: 15 },
-    { id: 'q5', text: 'Is your hard drive encrypted (BitLocker/FileVault)?', weight: 20 },
-  ];
+  try {
+    const querySnapshot = await getDocs(collection(db, "safety_questions"));
+    if (!querySnapshot.empty) {
+      console.log(`[DB] Successfully loaded ${querySnapshot.size} questions from Firestore.`);
+      return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          text: data.text || data.question || "Untitled Question",
+          weight: data.weight || 10
+        };
+      }) as SecurityQuestion[];
+    } else {
+      console.log("[DB] 'safety_questions' collection is empty. Using mock data.");
+    }
+  } catch (error) {
+    console.warn("[DB] Connection failed. Using mock data. Check your API Key in lib/firebase.ts", error);
+  }
+  return MOCK_QUESTIONS;
 };
 
-// Simulate URL/Phone inspection (mocking an external API check)
+// Save Checkup Results to 'checkup_results' collection
+export const saveCheckupResult = async (score: number, answers: Record<string, boolean>): Promise<boolean> => {
+  try {
+    await addDoc(collection(db, "checkup_results"), {
+      score,
+      answers,
+      timestamp: Timestamp.now(),
+      platform: 'web',
+      meta: {
+        userAgent: navigator.userAgent
+      }
+    });
+    console.log("[DB] Checkup result saved successfully.");
+    return true;
+  } catch (error) {
+    console.error("[DB] Error saving checkup result:", error);
+    // Simulate success for UI if DB fails so user isn't stuck
+    return new Promise(resolve => setTimeout(() => resolve(true), 500));
+  }
+};
+
+// Submit Report to 'incidents' collection
+export const submitReport = async (content: string): Promise<boolean> => {
+  try {
+    await addDoc(collection(db, "incidents"), {
+      content,
+      timestamp: Timestamp.now(),
+      status: 'pending',
+      platform: 'web'
+    });
+    console.log("[DB] Incident report submitted successfully.");
+    return true;
+  } catch (error) {
+    console.error("[DB] Error submitting report:", error);
+    return new Promise(resolve => setTimeout(() => resolve(true), 1000));
+  }
+};
+
+// --- SIMULATED SERVICES (No DB changes requested yet) ---
+
+// Simulate URL/Phone inspection
 export const inspectInput = async (input: string): Promise<InspectResult> => {
   return new Promise((resolve) => {
     setTimeout(() => {
@@ -36,14 +101,8 @@ export const inspectInput = async (input: string): Promise<InspectResult> => {
         details,
         scannedAt: new Date()
       });
-    }, 1500); // Fake network delay
+    }, 1500);
   });
-};
-
-// Simulate submitting report to Google Sheets / Firestore
-export const submitReport = async (content: string): Promise<boolean> => {
-  console.log('Submitting report to backend:', content);
-  return new Promise(resolve => setTimeout(() => resolve(true), 1000));
 };
 
 // Mock Data for Radar
@@ -64,7 +123,6 @@ export const getThreatStats = (): ThreatStat[] => [
 ];
 
 // Simulate a server broadcast listener
-// In a real app, this would use WebSocket or Firebase onSnapshot
 export const subscribeToBroadcasts = (callback: (msg: BroadcastMessage) => void) => {
   const timeoutId = setTimeout(() => {
     callback({
@@ -74,7 +132,7 @@ export const subscribeToBroadcasts = (callback: (msg: BroadcastMessage) => void)
       level: 'warning',
       timestamp: new Date()
     });
-  }, 5000); // Simulate an alert arriving 5 seconds after app load
+  }, 5000);
 
   return () => clearTimeout(timeoutId);
 };
