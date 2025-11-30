@@ -1,0 +1,7 @@
+{
+  "name": "Axionym.Guard",
+  "description": "Personal cybersecurity dashboard with threat analysis, reporting, and live radar.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
