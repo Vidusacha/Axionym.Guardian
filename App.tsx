@@ -7,13 +7,17 @@ import ReportModule from './components/ReportModule';
 import BroadcastBanner from './components/BroadcastBanner';
 import { AppTab, BroadcastMessage } from './types';
 import { subscribeToBroadcasts } from './services/mockService';
+import { ensureAuth } from './lib/firebase';
 
 const App: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<AppTab>(AppTab.CHECKUP);
   const [broadcast, setBroadcast] = useState<BroadcastMessage | null>(null);
 
   useEffect(() => {
-    // Initialize broadcast listener
+    // 1. Ensure we are authenticated (anonymous) for Firestore access
+    ensureAuth();
+
+    // 2. Initialize broadcast listener
     const unsubscribe = subscribeToBroadcasts((msg) => {
       setBroadcast(msg);
       // Auto dismiss non-critical after 10 seconds
